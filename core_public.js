@@ -1,105 +1,102 @@
 (function() {
+    // 1. 基礎檢查
     if (window.top !== window.self) return;
-    if (document.getElementById('zb-ball')) return;
+    if (document.getElementById('zb-ball')) {
+        document.getElementById('zb-ball').style.display = 'flex';
+        return;
+    }
 
-    // --- [1. 載入 WebGPU AI 引擎 (Transformers.js v3)] ---
-    const script = document.createElement('script');
-    script.src = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.14";
-    script.type = "module";
-    document.head.appendChild(script);
+    console.log("💠 Zerobode Core Initializing...");
 
-    // --- [2. 注入 UI 介面] ---
+    // 2. 建立 UI 容器與樣式 (使用最高優先權 !important)
     const style = document.createElement('style');
     style.innerHTML = `
-        #zb-ball { position:fixed; bottom:20px; right:20px; width:56px; height:56px; background:linear-gradient(135deg, #7c3aed, #5b21b6); border-radius:28px; display:flex; justify-content:center; align-items:center; font-size:26px; cursor:pointer; z-index:2147483647; box-shadow:0 0 20px rgba(124,58,237,0.5); border:2px solid #c4b5fd; transition:all 0.3s; }
-        #zb-panel { position:fixed; bottom:90px; right:20px; width:350px; background:rgba(15,23,42,0.95); backdrop-filter:blur(15px); border:1px solid #8b5cf6; border-radius:16px; padding:18px; z-index:2147483646; color:#e2e8f0; transform:scale(0); opacity:0; transform-origin:bottom right; transition:0.3s; display:flex; flex-direction:column; max-height:80vh; font-family:sans-serif; }
-        #zb-panel.active { transform:scale(1); opacity:1; }
-        #zb-log { flex:1; min-height:150px; overflow-y:auto; background:#000; padding:10px; border-radius:8px; font-size:11px; font-family:monospace; color:#4ade80; margin-bottom:12px; border:1px solid #334155; }
-        .zb-progress { height:6px; background:#1e293b; border-radius:3px; overflow:hidden; margin-bottom:10px; display:none; }
-        .zb-bar { height:100%; width:0%; background:#a78bfa; transition:width 0.2s; }
-        .zb-btn { width:100%; padding:12px; background:#7c3aed; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; }
+        #zb-ball { 
+            position: fixed !important; bottom: 20px !important; right: 20px !important; 
+            width: 60px !important; height: 60px !important; 
+            background: linear-gradient(135deg, #7c3aed, #5b21b6) !important; 
+            border-radius: 50% !important; display: flex !important; 
+            justify-content: center !important; align-items: center !important; 
+            font-size: 30px !important; cursor: pointer !important; 
+            z-index: 2147483647 !important; box-shadow: 0 0 25px rgba(124,58,237,0.6) !important; 
+            border: 2px solid #c4b5fd !important; color: white !important;
+        }
+        #zb-panel { 
+            position: fixed !important; bottom: 90px !important; right: 20px !important; 
+            width: 320px !important; background: rgba(15,23,42,0.98) !important; 
+            backdrop-filter: blur(15px) !important; border: 1px solid #8b5cf6 !important; 
+            border-radius: 16px !important; padding: 15px !important; 
+            z-index: 2147483646 !important; color: #e2e8f0 !important; 
+            display: none; flex-direction: column !important; 
+            max-height: 80vh !important; font-family: sans-serif !important;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8) !important;
+        }
+        #zb-panel.active { display: flex !important; }
+        .zb-log { height: 120px !important; overflow-y: auto !important; background: #000 !important; padding: 8px !important; border-radius: 8px !important; font-size: 11px !important; font-family: monospace !important; color: #4ade80 !important; margin: 10px 0 !important; border: 1px solid #334155 !important; }
+        .zb-btn { width: 100% !important; padding: 10px !important; background: #7c3aed !important; color: white !important; border: none !important; border-radius: 8px !important; font-weight: bold !important; cursor: pointer !important; margin-top: 5px !important; }
     `;
     document.head.appendChild(style);
 
+    // 3. 建立懸浮球與面板
     const ball = document.createElement('div');
     ball.id = 'zb-ball'; ball.innerHTML = '💠';
-    document.body.appendChild(ball);
-
+    
     const panel = document.createElement('div');
     panel.id = 'zb-panel';
     panel.innerHTML = `
-        <h1 style="font-size:16px;color:#c4b5fd;margin-bottom:10px;">Zerobode 💠 Local Agent</h1>
-        <div id="zb-progress-box" class="zb-progress"><div id="zb-bar" class="zb-bar"></div></div>
-        <div id="zb-log">> 系統就緒。點擊「載入模型」開始。</div>
-        <button id="zb-load" class="zb-btn" style="margin-bottom:10px;">💾 載入本地 WebGPU 模型</button>
-        <input id="zb-input" style="width:100%;padding:10px;background:#1e293b;border:1px solid #8b5cf6;color:#fff;border-radius:8px;margin-bottom:10px;" placeholder="輸入任務目標...">
-        <button id="zb-run" class="zb-btn" disabled>⚡ 啟動自動化</button>
+        <div style="font-weight:bold; color:#c4b5fd; border-bottom:1px solid #334155; padding-bottom:5px; margin-bottom:10px;">Zerobode 💠 Local Agent</div>
+        <div class="zb-log" id="zb-log-win">> 系統就緒。請載入模型。</div>
+        <button class="zb-btn" id="zb-btn-load">💾 載入 WebGPU 引擎</button>
+        <div id="zb-action-ui" style="display:none;">
+            <input id="zb-task" style="width:100%; padding:8px; background:#1e293b; border:1px solid #8b5cf6; color:white; border-radius:5px; margin-bottom:5px;" placeholder="輸入目標...">
+            <button class="zb-btn" style="background:#059669;">⚡ 執行自動化</button>
+        </div>
     `;
-    document.body.appendChild(panel);
 
-    ball.onclick = () => panel.classList.toggle('active');
-
-    // --- [3. 劫持跳轉：防止網頁重整] ---
-    document.addEventListener('click', async (e) => {
-        const link = e.target.closest('a');
-        if (link && link.href && link.href.startsWith('http') && !link.href.includes(window.location.hostname)) {
-            // 只有跨域或需要跳轉時才攔截
-            e.preventDefault();
-            const targetUrl = link.href;
-            console.log("💠 攔截跳轉至:", targetUrl);
-            await navigateTo(targetUrl);
-        }
-    }, true);
-
-    async function navigateTo(url) {
-        document.getElementById('zb-log').innerHTML += `<div style="color:#fbbf24">> 🔄 正在背景抓取並渲染: ${url}</div>`;
-        try {
-            const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
-            const html = await res.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            
-            // 核心：只換掉 body 內容，腳本和 UI 依然活在原本的 window 裡！
-            document.body.innerHTML = doc.body.innerHTML;
-            document.title = doc.title;
-            // 重新放回我們的 UI
+    // 確保插入 body
+    if (document.body) {
+        document.body.appendChild(ball);
+        document.body.appendChild(panel);
+    } else {
+        window.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(ball);
             document.body.appendChild(panel);
-            window.history.pushState({}, "", url); // 更新網址列但不重整
-            document.getElementById('zb-log').innerHTML += `<div style="color:#4ade80">> ✅ 跳轉成功！AI 仍然存活。</div>`;
-        } catch (err) {
-            alert("跳轉失敗(CORS/防爬蟲): " + err);
-        }
+        });
     }
 
-    // --- [4. 模型載入邏輯] ---
-    let generator;
-    document.getElementById('zb-load').onclick = async function() {
-        this.disabled = true;
-        this.innerText = "連線中...";
-        const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.14');
-        
-        document.getElementById('zb-progress-box').style.display = 'block';
+    // 4. 控制邏輯
+    ball.onclick = () => {
+        panel.classList.toggle('active');
+        console.log("💠 Zerobode Panel Toggled");
+    };
+
+    const logWin = document.getElementById('zb-log-win');
+    document.getElementById('zb-btn-load').onclick = async function() {
+        this.innerText = "⏳ 引擎初始化...";
+        logWin.innerHTML += "<div>> 正在連線至 HuggingFace CDN...</div>";
         
         try {
-            generator = await pipeline('text-generation', 'Xenova/Qwen1.5-0.5B-Chat', {
-                device: 'webgpu',
-                progress_callback: (d) => {
-                    const p = Math.round(d.progress || 0);
-                    document.getElementById('zb-bar').style.width = p + '%';
-                }
-            });
-            document.getElementById('zb-log').innerHTML += `<div>> ✅ WebGPU 模型載入完成！</div>`;
-            document.getElementById('zb-run').disabled = false;
+            // 動態載入 Transformers.js
+            const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0-alpha.14');
+            logWin.innerHTML += "<div style='color:#4ade80'>> ✅ 引擎載入成功！</div>";
+            document.getElementById('zb-action-ui').style.display = 'block';
             this.style.display = 'none';
-        } catch (err) {
-            alert("WebGPU 啟動失敗，請檢查瀏覽器是否支援: " + err);
+        } catch (e) {
+            logWin.innerHTML += `<div style="color:#ef4444">> ❌ 載入失敗: ${e.message}</div>`;
+            this.innerText = "重試載入";
+            this.disabled = false;
         }
     };
 
-    // --- [5. 自動化掃描與執行 (略，可放入之前的 scanDOM 邏輯)] ---
-    document.getElementById('zb-run').onclick = () => {
-        // 這裡放入 AI 思考與操作的迴圈...
-    };
+    // 5. 劫持導航 (防止跳頁死機)
+    document.addEventListener('click', e => {
+        const a = e.target.closest('a');
+        if (a && a.href && a.href.startsWith('http') && !a.href.includes('#')) {
+            e.preventDefault();
+            logWin.innerHTML += `<div style="color:#eab308">> 🔄 劫持導航至: ${a.href.substring(0,30)}...</div>`;
+            // 這裡後續接全自動 Fetch 渲染邏輯
+            window.history.pushState({}, "", a.href);
+        }
+    }, true);
 
 })();
