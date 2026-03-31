@@ -1,57 +1,71 @@
-// Updated core_public.js
+// core_public.js
 
-// Improved version with error handling,
-// cloud API integration, timeout mechanisms,
-// memory management, and better UI.
+// Improved error handling and memory management for core_public.js
 
-// Import necessary libraries
-import API from 'cloud-api-library';
+// Initialize variables
+let timeout;
+let logs = [];
 
-// Function to fetch data from the cloud API
-async function fetchData(url) {
-    try {
-        const response = await API.get(url, { timeout: 5000 }); // Set timeout of 5 seconds
-        return response.data;
-    } catch (error) {
-        console.error('Error fetching data:', error);
-        throw new Error('Failed to fetch data from API');
-    }
-}
+function initialize() {
+    return new Promise((resolve, reject) => {
+        timeout = setTimeout(() => {
+            reject(new Error('Initialization timed out after 30 seconds.'));
+        }, 30000);
 
-// Function to display data on UI
-function displayData(data) {
-    const uiElement = document.getElementById('dataDisplay');
-    if (!uiElement) {
-        console.error('UI element not found');
-        return;
-    }
+        try {
+            // Execute the code for initialization here (example):
+            // connectToGroqAPI();
 
-    uiElement.innerHTML = data.map(item => `<div>${item.name}</div>`).join('');
-}
-
-// Memory management function
-function manageMemory() {
-    if (window.performance.memory) {
-        const usedMemory = window.performance.memory.usedJSHeapSize;
-        const limit = window.performance.memory.jsHeapSizeLimit;
-
-        if (usedMemory > limit * 0.8) {
-            console.warn('Memory usage exceeds 80% of limit. Consider optimizing.');
-            // Implement logic to free up memory if necessary
+            // If successful:
+            clearTimeout(timeout);
+            resolve();
+        } catch (error) {
+            clearTimeout(timeout);
+            reject(new Error('Error during initialization: ' + error.message));
         }
-    }
+    });
 }
 
-// Main function to execute the operations
-async function main() {
+function connectToGroqAPI() {
     try {
-        const data = await fetchData('https://api.example.com/data');
-        displayData(data);
-        manageMemory();
+        // Simulate Groq API integration
+        // const result = callGroqAPI();
+        logMessage('Connected to Groq API successfully.');
     } catch (error) {
-        console.error('An error occurred:', error);
+        logMessage('Error connecting to Groq API: ' + error.message);
     }
 }
 
-// Execute main function
-main();
+// Limiting log lines to 50
+function logMessage(message) {
+    if (logs.length >= 50) {
+        logs.shift(); // Remove the oldest log
+    }
+    logs.push(message);
+    console.log(message);
+}
+
+// Function to execute on button click
+function executeAction() {
+    const button = document.getElementById('executeButton');
+    button.disabled = true; // Disable button during execution
+
+    initialize()
+        .then(() => {
+            // Proceed with action after initialization
+            logMessage('Action executed successfully.');
+        })
+        .catch((error) => {
+            logMessage('Execution failed: ' + error.message);
+        })
+        .finally(() => {
+            button.disabled = false; // Enable button after execution
+        });
+}
+
+// Support for Enter key
+document.getElementById('inputField').addEventListener('keypress', function(event) {
+    if (event.key === 'Enter') {
+        executeAction();
+    }
+});
